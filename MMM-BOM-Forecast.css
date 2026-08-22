@@ -1,0 +1,31 @@
+.MMM-BOM-Forecast .day {
+  padding-left: 0;
+  padding-right: 25px;
+}
+
+.MMM-BOM-Forecast .weather-icon {
+  padding-right: 30px;
+  text-align: center;
+}
+
+.MMM-BOM-Forecast .min-temp {
+  padding-left: 20px;
+  padding-right: 0;
+}
+
+.MMM-BOM-Forecast .rain {
+  padding-left: 20px;
+  padding-right: 0;
+}
+
+.bom-smallrma {
+  font-size: 60%;
+}
+
+.MMM-BOM-Forecast tr.colored .min-temp {
+  color: #bcddff;
+}
+
+.MMM-BOM-Forecast tr.colored .max-temp {
+  color: #ff8e99;
+}

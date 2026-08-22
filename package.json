@@ -1,0 +1,26 @@
+{
+  "name": "mmm-bom-forecast",
+  "version": "1.0.0",
+  "description": "MagicMirror² module that displays a multi-day forecast from the Australian Bureau of Meteorology (BOM) public XML feed.",
+  "main": "MMM-BOM-Forecast.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kmbrimble/MMM-BOM-Forecast.git"
+  },
+  "keywords": [
+    "MagicMirror",
+    "BOM",
+    "weather",
+    "forecast",
+    "australia"
+  ],
+  "author": "Kieren McDonald",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/kmbrimble/MMM-BOM-Forecast/issues"
+  },
+  "homepage": "https://github.com/kmbrimble/MMM-BOM-Forecast#readme"
+}
