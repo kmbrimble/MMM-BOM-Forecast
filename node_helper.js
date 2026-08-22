@@ -1,10 +1,25 @@
 var NodeHelper = require("node_helper");
 const https = require('https');
 
+const MIN_FETCH_INTERVAL_MS = 5 * 60 * 1000; // floor beneath any configured updateInterval
+
 module.exports = NodeHelper.create({
+
+    start: function () {
+        this.lastFetchTime = 0;
+        this.lastData = null;
+    },
 
     socketNotificationReceived: function (notification, payload) {
         if (notification === 'LOAD_BOM_FORECAST') {
+            const now = Date.now();
+            if (now - this.lastFetchTime < MIN_FETCH_INTERVAL_MS) {
+                console.log("MMM-BOM-Forecast: Below minimum interval of " + MIN_FETCH_INTERVAL_MS + "ms, serving cached data instead of re-fetching.");
+                if (this.lastData) {
+                    this.sendSocketNotification('LOAD_BOM_FORECAST_RECEIVED', this.lastData);
+                }
+                return;
+            }
             // Force HTTPS if it was HTTP
             var securePayload = payload.replace("http://", "https://");
             this.getBomForecast(securePayload);
@@ -31,6 +46,8 @@ module.exports = NodeHelper.create({
             
             response.on('end', () => {
                 console.log('BomForecast', 'Data received. Length:', data.length);
+                this.lastFetchTime = Date.now();
+                this.lastData = data;
                 this.sendSocketNotification('LOAD_BOM_FORECAST_RECEIVED', data);
             });
 
