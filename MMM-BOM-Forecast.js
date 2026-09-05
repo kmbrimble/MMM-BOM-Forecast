@@ -5,8 +5,7 @@ Module.register("MMM-BOM-Forecast",{
 	defaults: {
 		location: "Canberra",
 		locationState: "ACT",
-		bomdata: '',
-	        iconset: 'highcontrast',	
+	        iconset: 'highcontrast',
 		animationSpeed: 1000,
 		appendLocationNameToHeader: true,
                 iconTable: {
@@ -34,13 +33,14 @@ Module.register("MMM-BOM-Forecast",{
 		showRainAmount: "true",
 		colored: "true",
 		units: "metric",
+		updateInterval: 1000 * 60 * 60,
 
 	},
 
 
         // Define required scripts.
         getScripts: function () {
-                return ["moment.js"];
+                return ["moment.js", "forecast-cache.js"];
         },
 
         // Define required scripts.
@@ -53,17 +53,23 @@ Module.register("MMM-BOM-Forecast",{
 		this.loaded = false;
 		moment.locale(config.language);
 		this.updateTimer = null;
+		this.tempCache = {};
 
-		console.log("Loading " + this.config.location + " in " + this.config.locationState);
+		if (this.config.decimalSymbol === "" || this.config.decimalSymbol === " ") {
+			this.config.decimalSymbol = ".";
+		}
+		if (this.config.fadePoint < 0) {
+			this.config.fadePoint = 0;
+		}
+
 		this.sendSocketNotification('LOAD_BOM_FORECAST', this.getUrl(this.config.locationState));
 		setInterval(() => {
 			this.sendSocketNotification('LOAD_BOM_FORECAST', this.getUrl(this.config.locationState));
-		}, 1000 * 60 * 60);
+		}, this.config.updateInterval);
 	},
 		
 	// Override dom generator.
 	getDom: function() {
-		console.log("MMM-BOM-Forecast: Rendering");
 		var wrapper = document.createElement("div");
 		if (this.config.location === "" ) {
                         wrapper.innerHTML = "Please set the correct location in the config for module: " + this.name + ".";
@@ -82,8 +88,6 @@ Module.register("MMM-BOM-Forecast",{
                 table.className = this.config.tableClass;
                 for (var f in this.forecast) {
                         var forecast = this.forecast[f];
-console.log("FORECAST " + f);
-console.log(forecast);
                         var row = document.createElement("tr");
                         if (this.config.colored) {
                                 row.className = "colored";
@@ -121,10 +125,6 @@ console.log(forecast);
                                 }
                         }
 
-                        if (this.config.decimalSymbol === "" || this.config.decimalSymbol === " ") {
-                                this.config.decimalSymbol = ".";
-                        }
-
                         // 1. Render Minimum Temperature First
                         var minTempCell = document.createElement("td");
                         minTempCell.innerHTML = forecast.minTemp.replace(".", this.config.decimalSymbol) + degreeLabel;
@@ -159,9 +159,6 @@ console.log(forecast);
                         }
 	
                         if (this.config.fade && this.config.fadePoint < 1) {
-                                if (this.config.fadePoint < 0) {
-                                        this.config.fadePoint = 0;
-                                }
                                 var startingPoint = this.forecast.length * this.config.fadePoint;
                                 var steps = this.forecast.length - startingPoint;
                                 if (f >= startingPoint) {
@@ -184,8 +181,6 @@ console.log(forecast);
 
                 }
 
-		console.log("MMM-BOM-Forecast: Rendering complete");
-		console.log(table);
                 return table;
 
 	},
@@ -200,10 +195,10 @@ console.log(forecast);
                 return this.data.header ? this.data.header : "";
         },
 
-        /* getParams(compliments)
-         * Generates an url with api parameters based on the config.
+        /* getUrl()
+         * Looks up the BOM forecast feed URL for the configured locationState.
          *
-         * return String - URL params.
+         * return String - feed URL, or undefined if locationState is unrecognised.
          */
         getUrl: function () {
 
@@ -211,30 +206,21 @@ console.log(forecast);
             case "ACT":
             case "NSW":
                 return "http://www.bom.gov.au/fwo/IDN11060.xml";
-                break;
             case "NT":
                 return "http://www.bom.gov.au/fwo/IDD10207.xml";
-                break;
             case "QLD":
                 return "http://www.bom.gov.au/fwo/IDQ10095.xml";
-                break;
             case "SA":
                 return "http://www.bom.gov.au/fwo/IDS10044.xml";
-                break;
             case "TAS":
                 return "http://www.bom.gov.au/fwo/IDT16710.xml";
-                break;
             case "VIC":
                 return "http://www.bom.gov.au/fwo/IDV10753.xml";
-                break;
             case "WA":
                 return "http://www.bom.gov.au/fwo/IDW14199.xml";
-                break;
             default:
-                break;
-        }
-
                 return undefined;
+        }
         },
 
 	parseXml: function(xmlStr) {
@@ -253,16 +239,19 @@ console.log(forecast);
         this.forecast = [];
         var lastDay = null;
         var forecastData = {};
-        var xmlDoc = this.parseXml(data);
+        // Seed this session's temp cache from node_helper's on-disk copy
+        // exactly once -- afterwards this session's own cache is at least
+        // as current (and gets reported back after every fetch), so a
+        // later disk snapshot would only ever be stale by comparison.
+        if (!this.tempCacheSeeded) {
+            this.tempCache = Object.assign({}, data.tempCache, this.tempCache);
+            this.tempCacheSeeded = true;
+        }
+        var xmlDoc = this.parseXml(data.xml);
         var areas = xmlDoc.getElementsByTagName('area');
-	console.log(areas);
 
-        for(var i=0; i<areas.length; i++){
-	    
-            console.log(areas[i].attributes.description.value + " == "+ this.config.location);
-
+        outer: for(var i=0; i<areas.length; i++){
 		if (areas[i].attributes.description.value == this.config.location && areas[i].getAttribute('type') == "location") {
-		console.log("Found " + this.config.location + " in dataset");
                 fpdays = areas[i].getElementsByTagName('forecast-period');
                 for (var fp=0; fp<fpdays.length; fp++) {
                     var day = 0;
@@ -272,11 +261,8 @@ console.log(forecast);
                     var rain = 0;
 		    var rainChance = 0;
 
+                    var dateKey = fpdays[fp].attributes.getNamedItem('start-time-local').value.slice(0, 10);
                     day = moment(fpdays[fp].attributes.getNamedItem('start-time-local').value, "YYYY-MM-DD hh:mm:ss").format("ddd");
-                   /* // SKIP TODAY: Check if forecast day matches real-time "Today"
-                    if (day === moment().format("ddd")) {
-                        continue;
-                    }*/
                    // Rename current day (day 0) forecast to "Today"
                     if (day === moment().format("ddd")) {
                         day = "Today";
@@ -305,41 +291,41 @@ console.log(forecast);
                             rainChance = els[et].firstChild.data;
                         }
                     }
+                    // BOM stops reporting a day's min once the overnight low has
+                    // passed, and its max once the afternoon high has passed --
+                    // retain the last known value for that date across refetches.
+                    var mergedTemps = mergeForecastTemps(this.tempCache, dateKey, minTemp, maxTemp);
+
                     forecastData = {
                                             day: day,
                                             icon: icon,
-                                            maxTemp: maxTemp?maxTemp:"-",
-                                            minTemp: minTemp?minTemp:"-",
+                                            maxTemp: mergedTemps.maxTemp?mergedTemps.maxTemp:"-",
+                                            minTemp: mergedTemps.minTemp?mergedTemps.minTemp:"-",
                                             rainAmount: rain,
 			    		    rainChance: rainChance
                                     };
                     this.forecast.push(forecastData);
-		    console.log(forecastData);
 
                     // Stop processing when maxNumberOfDays is reached
                     if (this.forecast.length === this.config.maxNumberOfDays) {
                         break;
                     }
                 }
-		this.show(this.config.animationSpeed);
-		this.loaded = true;
-		this.updateDom(this.config.animationSpeed);
-		return;
+		break outer;
             }
         }
 
-                //Log.log(this.forecast);
-                this.show(this.config.animationSpeed, { lockString: this.identifier });
+                this.show(this.config.animationSpeed, undefined, { lockString: this.identifier });
                 this.loaded = true;
                 this.updateDom(this.config.animationSpeed);
+                this.sendSocketNotification('BOM_FORECAST_TEMP_CACHE_SAVE', this.tempCache);
         },
 
 
 	socketNotificationReceived: function(notification, payload) {
 		if (notification === 'LOAD_BOM_FORECAST_RECEIVED') {
-			this.bomdata = this.processWeather(payload);
+			this.processWeather(payload);
 			this.updateDom();
-			console.log("Got payload");
 		}
 	}
 

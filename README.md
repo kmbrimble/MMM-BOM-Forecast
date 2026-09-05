@@ -56,6 +56,7 @@ Add the module to the `modules` array in `config/config.js`:
 | `appendLocationNameToHeader` | *Optional* — append the location name to the module header. Default: `true`. |
 | `radarImage`          | *Optional* — a radar image URL to render below the table when today's rain chance is non-zero. |
 | `iconset`             | *Optional* — cosmetic only currently; reserved for future icon theming. Default: `"highcontrast"`. |
+| `updateInterval`      | *Optional* — how often to re-fetch the feed, in milliseconds. Default: `3600000` (1 hour). The node helper enforces a 5-minute floor regardless. |
 
 ### Finding your `location` value
 
@@ -69,7 +70,11 @@ a browser (e.g. `http://www.bom.gov.au/fwo/IDQ10095.xml` for QLD) and search for
 - Fetches with a browser-like `User-Agent` header, since BOM's server can otherwise reject
   requests from non-browser clients.
 - The node helper rewrites `http://` feed URLs to `https://` before fetching.
-- Polls once per hour — BOM's forecast data doesn't update more often than that.
+- Polls once per hour by default — BOM's forecast data doesn't update more often than that.
+- BOM drops a day's minimum from the feed once the overnight low has passed, and the maximum
+  once the afternoon high has passed. The module retains the last known value for each date
+  (`forecast-cache.js`) and the node helper persists that cache to `temp-cache.json` in the
+  module directory (`temp-cache-store.js`) so it survives a restart. The file is gitignored.
 
 ## Provenance
 
