@@ -1,5 +1,7 @@
 # MMM-BOM-Forecast
 
+> Development happens on a private forge; this repository is a read-only mirror. Releases are published here.
+
 A [MagicMirror²](https://github.com/MagicMirrorOrg/MagicMirror) module that displays a
 multi-day weather forecast for an Australian location, sourced directly from the Bureau of
 Meteorology's (BOM) public XML forecast feed.
